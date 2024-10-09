@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>진분수의 덧셈과 뺄셈 게임!</title>
+    <!-- MathJax 라이브러리 로드 -->
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            svg: { fontCache: 'global' },
+            startup: {
+                ready: () => {
+                    MathJax.startup.defaultReady();
+                }
+            }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f8ff;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        #start-screen, #game-screen, #end-screen {
+            display: none;
+            padding: 20px;
+        }
+        #start-screen.visible, #game-screen.visible, #end-screen.visible {
+            display: block;
+        }
+        h1 {
+            color: #ff4500;
+            margin-bottom: 10px;
+        }
+        h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .button {
+            padding: 15px 25px;
+            font-size: 18px;
+            margin: 10px;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            background-color: #4CAF50;
+            color: white;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+        #choices {
+            margin: 20px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .choice-button {
+            padding: 15px 25px;
+            font-size: 20px;
+            margin: 10px;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            background-color: #008CBA;
+            color: white;
+            transition: background-color 0.3s;
+            width: 300px;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .choice-button:hover {
+            background-color: #007bb5;
+        }
+        #energy-bar {
+            width: 100%;
+            height: 30px;
+            background-color: #ddd;
+            margin: 20px 0;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        #energy {
+            height: 100%;
+            background-color: #76c7c0;
+            width: 100%;
+            transition: width 0.2s linear;
+        }
+        #stats {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+        #message {
+            font-size: 22px;
+            color: red;
+            margin-top: 20px;
+            min-height: 30px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 시작 화면 -->
+    <div id="start-screen" class="visible">
+        <h1>진분수의 덧셈과 뺄셈 게임!</h1>
+        <h2>난이도를 선택하세요</h2>
+        <button class="button" onclick="startGame('highest')">최상</button>
+        <button class="button" onclick="startGame('high')">상</button>
+        <button class="button" onclick="startGame('medium')">중</button>
+        <button class="button" onclick="startGame('low')">하</button>
+    </div>
+
+    <!-- 게임 화면 -->
+    <div id="game-screen">
+        <h1>진분수의 덧셈과 뺄셈 게임!</h1>
+        <div id="energy-bar">
+            <div id="energy"></div>
+        </div>
+        <div id="question-container">
+            <div id="question" style="font-size: 24px; margin: 20px 0;">
+                세 개의 분수의 덧셈과 뺄셈을 수행하여 결과를 구하시오:<br>
+                <span id="fraction1"></span> <span id="operator1"></span> <span id="fraction2"></span> <span id="operator2"></span> <span id="fraction3"></span>
+            </div>
+            <div id="choices">
+                <button class="choice-button" onclick="checkAnswer(1)" id="choice1">1</button>
+                <button class="choice-button" onclick="checkAnswer(2)" id="choice2">2</button>
+                <button class="choice-button" onclick="checkAnswer(3)" id="choice3">3</button>
+                <button class="choice-button" onclick="checkAnswer(4)" id="choice4">4</button>
+            </div>
+        </div>
+        <div id="message"></div>
+        <div id="stats">
+            <p>점수: <span id="score">0</span></p>
+            <p>남은 기회: <span id="lives">3</span></p>
+            <p>총 게임 시간: <span id="game-time">0</span>초</p>
+        </div>
+    </div>
+
+    <!-- 종료 화면 -->
+    <div id="end-screen">
+        <h1>게임 종료!</h1>
+        <p>최종 점수: <span id="final-score">0</span></p>
+        <p>총 게임 시간: <span id="final-time">0</span>초</p>
+        <button class="button" onclick="restartGame()">다시 시작</button>
+    </div>
+
+    <script>
+        window.onload = function() {
+            // 난이도별 설정
+            const difficultySettings = {
+                'highest': { time: 15, points: 20 },
+                'high': { time: 20, points: 15 },
+                'medium': { time: 25, points: 10 },
+                'low': { time: 30, points: 5 }
+            };
+            let difficulty;
+            let timeLimit;
+            let score = 0;
+            let lives = 3;
+            let totalGameTime = 0;
+            let gameInterval;
+            let energyInterval;
+            let gameStartTime;
+
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let correctAnswerIndex = 0;
+
+            // 허용되는 분모 목록
+            const allowedDenominators = [2, 3, 4, 5, 6, 7, 8, 9];
+
+            // 문제 생성 함수
+            function generateQuestions() {
+                questions = [];
+                // 원하는 만큼 문제를 생성할 수 있습니다. 여기서는 60개 생성
+                for (let i = 0; i < 60; i++) {
+                    let frac1 = generateFraction();
+                    let frac2 = generateFraction();
+                    let frac3 = generateFraction();
+
+                    // 랜덤하게 덧셈과 뺄셈 연산자 결정
+                    let operator1 = getRandomOperator();
+                    let operator2 = getRandomOperator();
+
+                    // 계산이 음수가 되지 않도록 조정
+                    while (!isNonNegative(frac1, operator1, frac2, operator2, frac3)) {
+                        operator1 = getRandomOperator();
+                        operator2 = getRandomOperator();
+                    }
+
+                    // 계산 결과 구하기
+                    let difference = calculateDifference(frac1, operator1, frac2, operator2, frac3);
+                    difference = simplifyFraction(difference.numerator, difference.denominator);
+                    let formattedDifference = formatFraction(difference);
+
+                    questions.push({
+                        frac1: frac1,
+                        operator1: operator1,
+                        frac2: frac2,
+                        operator2: operator2,
+                        frac3: frac3,
+                        difference: difference, // 객체 형태 { numerator, denominator }
+                        formattedDifference: formattedDifference // LaTeX 형식
+                    });
+                }
+            }
+
+            // 분수 생성 함수 (항상 진분수)
+            function generateFraction() {
+                let denominator = allowedDenominators[getRandomInt(0, allowedDenominators.length - 1)];
+                let numerator = getRandomInt(1, denominator - 1); // 진분수
+                return { numerator, denominator };
+            }
+
+            // 랜덤 정수 생성 함수
+            function getRandomInt(min, max) {
+                return Math.floor(Math.random() * (max - min + 1)) + min;
+            }
+
+            // 랜덤 연산자 생성 함수
+            function getRandomOperator() {
+                return Math.random() < 0.5 ? '+' : '-';
+            }
+
+            // 세 분수와 연산자를 받아 계산 결과를 반환하는 함수
+            function calculateDifference(frac1, operator1, frac2, operator2, frac3) {
+                // 가분수로 변환
+                let improper1 = toImproperFraction(frac1);
+                let improper2 = toImproperFraction(frac2);
+                let improper3 = toImproperFraction(frac3);
+
+                // 첫 번째 연산
+                let intermediate;
+                if (operator1 === '+') {
+                    intermediate = addFractions(improper1, improper2);
+                } else {
+                    intermediate = subtractFractions(improper1, improper2);
+                }
+
+                // 두 번째 연산
+                let final;
+                if (operator2 === '+') {
+                    final = addFractions(intermediate, improper3);
+                } else {
+                    final = subtractFractions(intermediate, improper3);
+                }
+
+                return final;
+            }
+
+            // 분수 덧셈 함수
+            function addFractions(fracA, fracB) {
+                let lcm = getLCM(fracA.denominator, fracB.denominator);
+                let numeratorA = fracA.numerator * (lcm / fracA.denominator);
+                let numeratorB = fracB.numerator * (lcm / fracB.denominator);
+                let sumNumerator = numeratorA + numeratorB;
+                return { numerator: sumNumerator, denominator: lcm };
+            }
+
+            // 분수 뺄셈 함수
+            function subtractFractions(fracA, fracB) {
+                let lcm = getLCM(fracA.denominator, fracB.denominator);
+                let numeratorA = fracA.numerator * (lcm / fracA.denominator);
+                let numeratorB = fracB.numerator * (lcm / fracB.denominator);
+                let diffNumerator = numeratorA - numeratorB;
+                return { numerator: diffNumerator, denominator: lcm };
+            }
+
+            // 두 연산으로 계산 결과가 음수가 되지 않는지 확인하는 함수
+            function isNonNegative(frac1, operator1, frac2, operator2, frac3) {
+                let result = calculateDifference(frac1, operator1, frac2, operator2, frac3);
+                let value = result.numerator / result.denominator;
+                return value >= 0;
+            }
+
+            // 가분수를 단순 분수로 변환하는 함수
+            function toImproperFraction(frac) {
+                return { numerator: frac.numerator, denominator: frac.denominator };
+            }
+
+            // 분수를 기약분수로 만드는 함수
+            function simplifyFraction(numerator, denominator) {
+                let gcd = getGCD(numerator, denominator);
+                return { numerator: numerator / gcd, denominator: denominator / gcd };
+            }
+
+            // 최소 공배수 계산 함수
+            function getLCM(a, b) {
+                return Math.abs(a * b) / getGCD(a, b);
+            }
+
+            // 최대 공약수 계산 함수
+            function getGCD(a, b) {
+                while (b !== 0) {
+                    let temp = b;
+                    b = a % b;
+                    a = temp;
+                }
+                return a;
+            }
+
+            // 게임 시작 함수
+            window.startGame = function(selectedDifficulty) {
+                difficulty = selectedDifficulty;
+                timeLimit = difficultySettings[difficulty].time;
+                document.getElementById('start-screen').classList.remove('visible');
+                document.getElementById('game-screen').classList.add('visible');
+                gameStartTime = Date.now();
+                score = 0;
+                lives = 3;
+                totalGameTime = 0;
+                generateQuestions();
+                shuffleArray(questions);
+                currentQuestionIndex = 0;
+                updateStats();
+                generateQuestion();
+                if (difficulty !== 'low') {
+                    startEnergyBar();
+                }
+                gameInterval = setInterval(() => {
+                    totalGameTime = Math.floor((Date.now() - gameStartTime) / 1000);
+                    document.getElementById('game-time').innerText = totalGameTime;
+                }, 1000);
+            }
+
+            // 문제 제시 함수
+            function generateQuestion() {
+                document.getElementById('message').innerHTML = '';
+                if (currentQuestionIndex >= questions.length) {
+                    currentQuestionIndex = 0;
+                    shuffleArray(questions);
+                }
+                let question = questions[currentQuestionIndex];
+                currentQuestionIndex++;
+
+                // 문제 표시
+                let frac1_display = formatFraction(question.frac1);
+                let frac2_display = formatFraction(question.frac2);
+                let frac3_display = formatFraction(question.frac3);
+                let operator1_display = question.operator1;
+                let operator2_display = question.operator2;
+
+                document.getElementById('fraction1').innerHTML = frac1_display;
+                document.getElementById('operator1').innerHTML = operator1_display;
+                document.getElementById('fraction2').innerHTML = frac2_display;
+                document.getElementById('operator2').innerHTML = operator2_display;
+                document.getElementById('fraction3').innerHTML = frac3_display;
+                MathJax.typesetPromise();
+
+                // 정답과 오답 생성
+                let correctDifference = `\\( \\frac{${question.difference.numerator}}{${question.difference.denominator}} \\)`;
+                let incorrectDifferences = generateIncorrectDifferences(question.difference);
+
+                // 답안 배열 생성 및 섞기
+                let allChoices = [correctDifference, ...incorrectDifferences];
+                shuffleArray(allChoices);
+                correctAnswerIndex = allChoices.indexOf(correctDifference) + 1;
+
+                // 답안 버튼에 설정
+                for (let i = 1; i <= 4; i++) {
+                    let choiceButton = document.getElementById(`choice${i}`);
+                    if (allChoices[i-1]) {
+                        choiceButton.innerHTML = allChoices[i-1];
+                    } else {
+                        choiceButton.innerHTML = '';
+                    }
+                }
+                // MathJax 렌더링 적용
+                MathJax.typesetPromise();
+            }
+
+            // 분수 포맷팅 함수 (진분수)
+            function formatFraction(frac) {
+                return `\\( \\frac{${frac.numerator}}{${frac.denominator}} \\)`;
+            }
+
+            // 오답 생성 함수 (정답과 근접한 단순 분수 생성)
+            function generateIncorrectDifferences(correctDiff) {
+                let incorrect = [];
+                let attempts = 0;
+                const maxAttempts = 100;
+
+                while (incorrect.length < 3 && attempts < maxAttempts) {
+                    attempts++;
+
+                    // 정답 분수와 유사한 분수 생성
+                    // 분자와 분모를 ±1 범위 내에서 조정
+                    let randNumerator = correctDiff.numerator + getRandomInt(-1, 1);
+                    let randDenominator = correctDiff.denominator + getRandomInt(-1, 1);
+
+                    // 분모는 2 이상, 9 이하의 한 자리 자연수
+                    if (randDenominator < 2 || randDenominator > 9) continue;
+
+                    // 분자가 분모보다 작아야 하는 진분수
+                    if (randNumerator < 1 || randNumerator >= randDenominator) continue;
+
+                    let temp = { numerator: randNumerator, denominator: randDenominator };
+                    let simplified = simplifyFraction(temp.numerator, temp.denominator);
+
+                    // 동일한 분수인지 확인
+                    if (simplified.numerator === correctDiff.numerator && simplified.denominator === correctDiff.denominator) {
+                        continue;
+                    }
+
+                    let sumFraction = `\\( \\frac{${simplified.numerator}}{${simplified.denominator}} \\)`;
+                    if (!incorrect.includes(sumFraction)) {
+                        incorrect.push(sumFraction);
+                    }
+                }
+
+                // 만약 충분한 오답이 생성되지 않았다면 랜덤 오답 추가
+                while (incorrect.length < 3) {
+                    let randDenominator = allowedDenominators[getRandomInt(0, allowedDenominators.length - 1)];
+                    let randNumerator = getRandomInt(1, randDenominator - 1);
+                    let sumFraction = `\\( \\frac{${randNumerator}}{${randDenominator}} \\)`;
+
+                    if (!incorrect.includes(sumFraction) && sumFraction !== `\\( \\frac{${correctDiff.numerator}}{${correctDiff.denominator}} \\)`) {
+                        incorrect.push(sumFraction);
+                    }
+                }
+                return incorrect;
+            }
+
+            // 정답 확인 함수
+            window.checkAnswer = function(selectedChoice) {
+                clearInterval(energyInterval);
+                let question = questions[currentQuestionIndex - 1];
+                let correctDifference = `\\( \\frac{${question.difference.numerator}}{${question.difference.denominator}} \\)`;
+
+                if (selectedChoice === correctAnswerIndex) {
+                    score += difficultySettings[difficulty].points;
+                    document.getElementById('message').innerHTML = '정답입니다! 🎉';
+                } else {
+                    lives--;
+                    document.getElementById('message').innerHTML = '틀렸습니다! 😢';
+                }
+                updateStats();
+
+                if (lives <= 0) {
+                    endGame();
+                } else {
+                    setTimeout(generateQuestion, 1500);
+                    if (difficulty !== 'low') {
+                        startEnergyBar();
+                    }
+                }
+            }
+
+            // 점수 및 생명 업데이트 함수
+            function updateStats() {
+                document.getElementById('score').innerText = score;
+                document.getElementById('lives').innerText = lives;
+                document.getElementById('game-time').innerText = totalGameTime;
+            }
+
+            // 게임 종료 함수
+            function endGame() {
+                clearInterval(gameInterval);
+                clearInterval(energyInterval);
+                document.getElementById('game-screen').classList.remove('visible');
+                document.getElementById('end-screen').classList.add('visible');
+                document.getElementById('final-score').innerText = score;
+                document.getElementById('final-time').innerText = totalGameTime;
+            }
+
+            // 게임 재시작 함수
+            window.restartGame = function() {
+                score = 0;
+                lives = 3;
+                totalGameTime = 0;
+                document.getElementById('end-screen').classList.remove('visible');
+                document.getElementById('game-screen').classList.add('visible');
+                updateStats();
+                generateQuestion();
+                if (difficulty !== 'low') {
+                    startEnergyBar();
+                }
+                gameStartTime = Date.now();
+                gameInterval = setInterval(() => {
+                    totalGameTime = Math.floor((Date.now() - gameStartTime) / 1000);
+                    document.getElementById('game-time').innerText = totalGameTime;
+                }, 1000);
+            }
+
+            // 에너지 바 시작 함수
+            function startEnergyBar() {
+                clearInterval(energyInterval);
+                let energyBar = document.getElementById('energy');
+                let width = 100;
+                let decrement = 100 / (timeLimit * 10); // 에너지 바 업데이트 간격에 따라 조정
+
+                energyBar.style.width = '100%';
+                energyInterval = setInterval(() => {
+                    width -= decrement;
+                    if (width <= 0) {
+                        clearInterval(energyInterval);
+                        lives--;
+                        updateStats();
+                        document.getElementById('message').innerHTML = '시간 초과! 😮';
+                        if (lives <= 0) {
+                            endGame();
+                        } else {
+                            setTimeout(generateQuestion, 1500);
+                            if (difficulty !== 'low') {
+                                startEnergyBar();
+                            }
+                        }
+                    } else {
+                        energyBar.style.width = width + '%';
+                    }
+                }, 100); // 0.1초마다 에너지 바 업데이트
+            }
+
+            // 문제 생성 시 필요한 Shuffle 함수
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    let j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+            }
+
+            // 초기 문제 생성
+            generateQuestions();
+        };
+    </script>
+
+</body>
+</html>
